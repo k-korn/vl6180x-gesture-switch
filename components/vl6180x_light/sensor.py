@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import sensor, i2c
 from esphome.const import (
   CONF_ID,
-  CONF_TRIGGER_ID,
   DEVICE_CLASS_ILLUMINANCE,
   ICON_BRIGHTNESS_5,
   UNIT_LUX,
@@ -12,18 +11,18 @@ DEPENDENCIES = ['i2c']
 
 vl6180x_light_ns = cg.esphome_ns.namespace('vl6180x_light')
 
-VL6180XSensor = vl6180x_light_ns.class_('VL6180XSensor', sensor.Sensor, cg.PollingComponent, i2c.I2CDevice)
+Vl6180xLightOutput = vl6180x_light_ns.class_('Vl6180xLightOutput', sensor.Sensor, cg.PollingComponent, i2c.I2CDevice)
 
 CONF_ALS = "als"
 
 CONFIG_SCHEMA = cv.All(
   cv.Schema(
     {
-      cv.GenerateID(): cv.declare_id(VL6180XSensor),
+      cv.GenerateID(): cv.declare_id(Vl6180xLightOutput),
       cv.Optional(CONF_ALS): sensor.sensor_schema(
           unit_of_measurement=UNIT_LUX,
           icon=ICON_BRIGHTNESS_5,
-          accuracy_decimals=1,
+          accuracy_decimals=2,
           device_class=DEVICE_CLASS_ILLUMINANCE,
       ),
 

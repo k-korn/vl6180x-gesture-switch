@@ -90,20 +90,8 @@ enum VL6180XError {
   VL6180X_ERROR_DATANOTREADY_18 = 18,    // Error returned by VL6180x_RangeGetMeasurementIfReady() when ranging data is not ready.
 };
 
-class Vl6180xLightOutput : public light::LightOutput, public Component {
+class Vl6180xLightOutput : public light::LightOutput, public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
-  void setup() override;
-  light::LightTraits get_traits() override;
-  void set_output(output::FloatOutput *output) { output_ = output; }
-  void write_state(light::LightState *state) override;
-  void dump_config() override;
- 
- protected:
-  output::FloatOutput *output_;
-};
-
-class VL6180XSensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
-  public:
     // Sensor states
     enum SensorState {
       SENSOR_STATE_IDLE,
@@ -112,18 +100,25 @@ class VL6180XSensor : public sensor::Sensor, public PollingComponent, public i2c
       SENSOR_STATE_DATA_READY,
     };
 
-	// Constructor
-  VL6180XSensor(uint8_t address = 0x29, uint32_t update_interval = 60000);
-
+    //Light switch states
+    enum SwitchState {
+      SW_STATE_IDLE,
+      SW_STATE_HAND,
+      SW_STATE_ADJ,
+      SW_STATE_ACK,
+      SW_STATE_WAIT,
+    };
+ 	// Constructor
+  Vl6180xLightOutput(uint8_t address = 0x29, uint32_t update_interval = 60000);
   void setup() override;
   void loop() override;
   void update() override;
   void dump_config() override;
-
+  light::LightTraits get_traits() override;
+  void set_output(output::FloatOutput *output) { output_ = output; }
+  void write_state(light::LightState *state) override;
+  
   void set_als_sensor(sensor::Sensor *als_sensor) { als_sensor_ = als_sensor; }
-	// Sensor operation methods
-  void start_measurement();
-  void check_measurement();
   void handle_error(uint8_t status);
 
 
@@ -137,22 +132,34 @@ class VL6180XSensor : public sensor::Sensor, public PollingComponent, public i2c
   uint8_t read_range();
   float read_als(); // Read the ALS value
 
-  protected:
-    // Sensor state and configuration variables
-    bool data_ready_{false};
-    bool als_active_{false};
-    bool als_requested_{false};
-    int gain_{VL6180X_ALS_GAIN_20};
-    uint8_t alx_integration_period_{50};
-    uint8_t range_{255};
-    uint32_t t_sent_{0};
-    uint32_t t_rs_{0}; // Time to get range
-    uint32_t t_als_{0}; // Time to get ALS reading
-    
-    sensor::Sensor *als_sensor_;
-    SensorState state_{SENSOR_STATE_IDLE};
-};
 
+ protected:
+  output::FloatOutput *output_;
+    // Sensor state and configuration variables
+  bool data_ready_{false};
+  bool als_active_{false};
+  bool als_requested_{false};
+  int gain_{VL6180X_ALS_GAIN_20};
+  uint8_t alx_integration_period_{50};
+  float als_{0};
+  uint8_t range_{255};
+  uint32_t t_sent_{0};
+  uint32_t t_rs_{0}; // Time to get range
+  uint32_t t_als_{0}; // Time to get ALS reading
+
+  // Switch variables
+  bool hand_near_{false}; 
+  float moving_average_{0}; // Range moving average for smoothing.
+  uint32_t t_hand_{0};  // Time the hand appeared
+  uint32_t hold_ms_{0};  // Duration the hand is held nearby
+  uint8_t range_min_{5}; // Minimum gesture detection range, mm.
+  uint8_t range_max_{90}; // Maximum gesture detection range, mm.
+
+  
+  sensor::Sensor *als_sensor_;
+  SensorState state_{SENSOR_STATE_IDLE};  
+  SwitchState sw_state_{SW_STATE_IDLE};
+};
 
 } //namespace vl6180x_light
 } //namespace esphome
