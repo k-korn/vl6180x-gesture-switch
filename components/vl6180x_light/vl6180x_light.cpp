@@ -388,7 +388,7 @@ void Vl6180xLightOutput::loop() {
         als_ = read_als();
         // If next measurement not immediately requested due to an overflow
         if (this->als_sensor_ != nullptr && ! als_requested_) 
-          als_sensor_->publish_state(als_);
+            als_sensor_->publish_state(als_);
         // Clear interrupt
         write_reg(VL6180XRegister::VL6180X_REG_SYSTEM_INTERRUPT_CLEAR, 0x07);
         this->state_ = SENSOR_STATE_IDLE;
@@ -452,8 +452,13 @@ void Vl6180xLightOutput::loop() {
             //if (this->output_ != nullptr)
             //  this->output_->set_state(false);
             // === TODO - : toggle output  =======================
+            //this->output_->turn_on();
+            this->lightstate_->toggle();
+            this->lightstate_->publish_state();
+            //this->lightstate_->set_immediately_();
             sw_state_ = SW_STATE_ACK;
           }
+          
 
       }
       break;
@@ -471,7 +476,8 @@ void Vl6180xLightOutput::loop() {
             adj_pct = (uint32_t)(100 * (range_max_ - moving_average_) / (range_max_ - range_min_));
 
             // === TODO - : set brightness while adjusting.  =======================
-            //this->output_->set_level(0.5f);
+            this->output_->set_level((range_max_ - moving_average_) / (range_max_ - range_min_));
+            
             
             //ledc_set_duty(expo[adj_pct]);
             ESP_LOGD(TAG,"Adjust, %0.1f %d",moving_average_,adj_pct);
@@ -534,7 +540,7 @@ void Vl6180xLightOutput::write_state(light::LightState *state) {
     state->current_values_as_brightness(&bright);
     this->output_->set_level(bright);
     
-    //ESP_LOGI(TAG, "Output level: %3.1f", bright);
+    ESP_LOGI(TAG, "Output level: %3.1f", bright);
     
 
 }

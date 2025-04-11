@@ -109,14 +109,16 @@ class Vl6180xLightOutput : public light::LightOutput, public sensor::Sensor, pub
       SW_STATE_WAIT,
     };
  	// Constructor
-  Vl6180xLightOutput(uint8_t address = 0x29, uint32_t update_interval = 60000);
+  Vl6180xLightOutput(uint8_t address = 0x29, uint32_t update_interval = 5000);
   void setup() override;
   void loop() override;
   void update() override;
   void dump_config() override;
   light::LightTraits get_traits() override;
   void set_output(output::FloatOutput *output) { output_ = output; }
+  void setup_state(light::LightState *state) override { this->lightstate_ = state; ESP_LOGE("APP", "Setup State Called"); }
   void write_state(light::LightState *state) override;
+  void set_update_interval(uint32_t update_interval) override {ESP_LOGE("APP", "--------   Update Interval to %d called",update_interval);};
   
   void set_als_sensor(sensor::Sensor *als_sensor) { als_sensor_ = als_sensor; }
   void handle_error(uint8_t status);
@@ -135,6 +137,7 @@ class Vl6180xLightOutput : public light::LightOutput, public sensor::Sensor, pub
 
  protected:
   output::FloatOutput *output_;
+  light::LightState *lightstate_{nullptr};
     // Sensor state and configuration variables
   bool data_ready_{false};
   bool als_active_{false};
