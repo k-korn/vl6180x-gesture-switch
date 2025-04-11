@@ -27,23 +27,6 @@ external_components:
 
 api:
 
-# mqtt:
-  # broker: mqtt-master.lan
-  # discovery: false
-  # topic_prefix: /esp/18AEE8
-  # on_message:
-    # - topic: "/esp/18AEE8/sensor/wh_capacity/state"
-      # then:
-        # lambda: |-
-          # static bool already_restored = false;
-          # if (already_restored)
-            # return;
-          # auto value = esphome::parse_number<float>(x);
-          # if (value.has_value()) {
-            # id(last_wh) = value.value();
-            # already_restored = true;
-          # }  
-
 ota:
   platform: esphome
   password: ""
@@ -70,8 +53,7 @@ sensor:
     loop_time:
       name: "Loop Time"
 
-     
-      
+# Actual test data here:
 output:
   - platform: ledc
     pin: GPIO25
