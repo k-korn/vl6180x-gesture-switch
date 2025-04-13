@@ -6,19 +6,16 @@ ToF ranging sensor to be used as gesture input.
 ```yaml
 # example configuration:
 
-sensor:
-  - platform: vl6180x_light
-    # address: 0x29
-    update_interval: 5s
-    als:
-       name: "Ambient"
-       unit_of_measurement: lx
-       accuracy_decimals: 2
-
 light:
   - platform: vl6180x_light
     name: VL6180x light
     output: pwm_output
+    max_range: 120
+    min_range: 15
+    ambient:
+        name: "Ambient"
+        unit_of_measurement: lx
+        accuracy_decimals: 2
 
 output:
   - platform: ledc

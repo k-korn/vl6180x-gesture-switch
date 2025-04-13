@@ -119,6 +119,9 @@ class Vl6180xLightOutput : public light::LightOutput, public sensor::Sensor, pub
   void setup_state(light::LightState *state) override { this->lightstate_ = state; ESP_LOGE("APP", "Setup State Called"); }
   void write_state(light::LightState *state) override;
   void set_update_interval(uint32_t update_interval) override {ESP_LOGE("APP", "--------   Update Interval to %d called",update_interval);};
+  void set_min_range(uint8_t v) { range_min_ = v; }
+  void set_max_range(uint8_t v) { range_max_ = v; }
+  void set_dimming(bool v) { use_dimming_ = v; }
   
   void set_als_sensor(sensor::Sensor *als_sensor) { als_sensor_ = als_sensor; }
   void handle_error(uint8_t status);
@@ -139,24 +142,29 @@ class Vl6180xLightOutput : public light::LightOutput, public sensor::Sensor, pub
   output::FloatOutput *output_;
   light::LightState *lightstate_{nullptr};
     // Sensor state and configuration variables
-  bool data_ready_{false};
-  bool als_active_{false};
   bool als_requested_{false};
+  
   int gain_{VL6180X_ALS_GAIN_20};
-  uint8_t alx_integration_period_{50};
+  uint8_t als_integration_period_{50};
   float als_{0};
+  //float als_
+  float adj_level_{0};
   uint8_t range_{255};
   uint32_t t_sent_{0};
   uint32_t t_rs_{0}; // Time to get range
   uint32_t t_als_{0}; // Time to get ALS reading
+  uint32_t t_ack_{0}; // Time of last ACK set
 
   // Switch variables
   bool hand_near_{false}; 
   float moving_average_{0}; // Range moving average for smoothing.
   uint32_t t_hand_{0};  // Time the hand appeared
   uint32_t hold_ms_{0};  // Duration the hand is held nearby
-  uint8_t range_min_{5}; // Minimum gesture detection range, mm.
-  uint8_t range_max_{90}; // Maximum gesture detection range, mm.
+
+  // Configuration
+  bool use_dimming_{true}; // If the switch should be dimmable.
+  uint8_t range_min_{10}; // Minimum gesture detection range, mm.
+  uint8_t range_max_{100}; // Maximum gesture detection range, mm.
 
   
   sensor::Sensor *als_sensor_;

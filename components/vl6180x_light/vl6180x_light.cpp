@@ -12,7 +12,7 @@ static const char *TAG = "vl6180x";
 
 Vl6180xLightOutput::Vl6180xLightOutput(uint8_t address, uint32_t update_interval)
 : PollingComponent(update_interval) {
-  this->set_i2c_address(address);
+  this->set_i2c_address(address); 
 }
 
 void Vl6180xLightOutput::setup() {
@@ -100,25 +100,26 @@ float Vl6180xLightOutput::read_als() {
 
   // Read lux
   float als_count = read_reg16(VL6180XRegister::VL6180X_REG_RESULT_ALS_VAL);
-
+  
+  // See https://www.st.com/resource/en/design_tip/dt0030-vl6180x-ambient-light-sensing-stmicroelectronics.pdf for actual gains.
   switch (gain_) {
     case VL6180X_ALS_GAIN_1:
-      gainxvalue = 1;
+      gainxvalue = 1.01;
     break;
     case VL6180X_ALS_GAIN_1_25:
-      gainxvalue = 1.25;
+      gainxvalue = 1.28;
     break;
     case VL6180X_ALS_GAIN_1_67:
-      gainxvalue = 1.67;
+      gainxvalue = 1.72;
     break;
     case VL6180X_ALS_GAIN_2_5:
-      gainxvalue = 2.5;
+      gainxvalue = 2.6;
     break;
     case VL6180X_ALS_GAIN_5:
-      gainxvalue = 5;
+      gainxvalue = 5.21;
     break;
     case VL6180X_ALS_GAIN_10:
-      gainxvalue = 10;
+      gainxvalue = 10.32;
     break;
     case VL6180X_ALS_GAIN_20:
       gainxvalue = 20;
@@ -130,8 +131,8 @@ float Vl6180xLightOutput::read_als() {
 
  
   // Calculate the light level in lux
-  float light_level_lux = 0.32 * ((float)als_count / (float)gainxvalue) * (100.0F / (float)alx_integration_period_);
-  ESP_LOGD(TAG, "[%7lu] ALS: %8.2f lx at %gx gain in %2lu ms",millis(), light_level_lux, gainxvalue, millis() - t_als_);
+  float light_level_lux = 0.32 * ((float)als_count / (float)gainxvalue) * (100.0F / (float)als_integration_period_);
+  //ESP_LOGD(TAG, "[%7lu] ALS: %8.2f lx at %gx gain in %2lu ms",millis(), light_level_lux, gainxvalue, millis() - t_als_);
 
   // Adjust gain for the next call.
   if (als_count == 65535 && gain_ != VL6180X_ALS_GAIN_1) {
@@ -312,7 +313,7 @@ void Vl6180xLightOutput::loop() {
       
         // Set integration period
         write_reg(VL6180XRegister::VL6180X_REG_SYSALS_INTEGRATION_PERIOD_HI, 0);
-        write_reg(VL6180XRegister::VL6180X_REG_SYSALS_INTEGRATION_PERIOD_LO, alx_integration_period_);
+        write_reg(VL6180XRegister::VL6180X_REG_SYSALS_INTEGRATION_PERIOD_LO, als_integration_period_-1);
       
         // Analog gain
         write_reg(VL6180XRegister::VL6180X_REG_SYSALS_ANALOGUE_GAIN, 0x40 | gain_);
@@ -387,8 +388,9 @@ void Vl6180xLightOutput::loop() {
         //ESP_LOGD(TAG, "Got ALS at %lu", micros());
         als_ = read_als();
         // If next measurement not immediately requested due to an overflow
-        if (this->als_sensor_ != nullptr && ! als_requested_) 
-            als_sensor_->publish_state(als_);
+        if (this->als_sensor_ != nullptr && ! als_requested_) {
+          als_sensor_->publish_state(als_);
+        }
         // Clear interrupt
         write_reg(VL6180XRegister::VL6180X_REG_SYSTEM_INTERRUPT_CLEAR, 0x07);
         this->state_ = SENSOR_STATE_IDLE;
@@ -414,21 +416,26 @@ void Vl6180xLightOutput::loop() {
   } // End range state machine
 
   //ESP_LOGD(TAG, "[%7lu] Switch loop, range: %3d", millis(),range_);
+
+  // Reset moving average if range is valid.
+  if (moving_average_ > 254 && range_ < 254)
+    moving_average_ = range_;
   moving_average_ = (7 * moving_average_ + (float)range_)/8;
+  /*
   if (t_now - t_sent_ >= 100000) {
     ESP_LOGD(TAG, "[%7lu] Range: %d (MA: %0.1f) ambient: %0.1f",
             t_now, range_, moving_average_,als_);
     t_sent_ = t_now;
-  }
+  } */
 
   // Light switch state machine.
-  uint32_t adj_pct = 0;
+  
   // If we do have a hand
-  hand_near_ = (range_ < 255 && moving_average_ < range_max_ + 5);
+  hand_near_ = (range_ < 254 && moving_average_ < range_max_ + 5);
   switch (sw_state_) {
     case SW_STATE_IDLE:   // Idling, nobody near. -----------------------------------
       if (hand_near_) {
-          ESP_LOGD(TAG,"Hand Near, to STATE_HAND: r %d ma %0.1f",range_, moving_average_);
+          ESP_LOGD(TAG,"[%7lu] Hand Near, to STATE_HAND: r %d ma %0.1f",t_now, range_, moving_average_);
           t_hand_ = t_now;
           sw_state_ = SW_STATE_HAND; 
       }
@@ -438,7 +445,7 @@ void Vl6180xLightOutput::loop() {
       if (hand_near_) {
           hold_ms_ = t_now - t_hand_;
           if (hold_ms_ > 1000 ) {
-            ESP_LOGD(TAG,"Hold for %d, to STATE_ADJ",hold_ms_);
+            ESP_LOGD(TAG,"[%7lu] Hold for %d, to STATE_ADJ",t_now,hold_ms_);
             sw_state_ = SW_STATE_ADJ;
             t_hand_ = t_now;
           }
@@ -448,13 +455,13 @@ void Vl6180xLightOutput::loop() {
             //ledc_set_duty(out_state * pwm_value);
 
             ESP_LOGD(TAG,"--- TOGGLE --- ");
-            ESP_LOGD(TAG,"Hold for %d, to STATE_ACK",hold_ms_);
+            ESP_LOGD(TAG,"[%7lu] Hold for %d, to STATE_ACK",t_now,hold_ms_);
             //if (this->output_ != nullptr)
             //  this->output_->set_state(false);
             // === TODO - : toggle output  =======================
             //this->output_->turn_on();
-            this->lightstate_->toggle();
-            this->lightstate_->publish_state();
+            this->lightstate_->toggle().perform();
+            //this->lightstate_->publish_state();
             //this->lightstate_->set_immediately_();
             sw_state_ = SW_STATE_ACK;
           }
@@ -473,26 +480,27 @@ void Vl6180xLightOutput::loop() {
             if (moving_average_ < range_min_)
                 moving_average_ = range_min_;   
             
-            adj_pct = (uint32_t)(100 * (range_max_ - moving_average_) / (range_max_ - range_min_));
+            adj_level_ =  (range_max_ - moving_average_) / (range_max_ - range_min_);
 
-            // === TODO - : set brightness while adjusting.  =======================
-            this->output_->set_level((range_max_ - moving_average_) / (range_max_ - range_min_));
-            
-            
-            //ledc_set_duty(expo[adj_pct]);
-            ESP_LOGD(TAG,"Adjust, %0.1f %d",moving_average_,adj_pct);
+            // Immediately set output level relatively to the hand position (adj_level_)
+            auto transition = this->lightstate_->turn_on();
+            transition.set_brightness(adj_level_);
+            transition.set_transition_length(0);
+            transition.perform();
+            //ESP_LOGD(TAG,"Adjust, %0.1fmm %0.1f %",moving_average_,100 * adj_level_);
+
           } else {
-            ESP_LOGD(TAG,"Adjust end, to STATE_WAIT at %d",adj_pct);
-            // === TODO - : set final brightness.  =======================
-            //pwm_value = expo[adj_pct];
-            //out_state = 1;
-            //ledc_set_duty(0);
-            //vTaskDelay(pdMS_TO_TICKS(150));
-            //ledc_set_duty(pwm_value);
+            ESP_LOGD(TAG,"[%7lu] Adjust end, to STATE_WAIT at %0.1f%",t_now,adj_level_);
+
+            // Acknowledge changes by a short blink. 
+            output_->turn_off();
+            delay(20);
+            // We can turn off the output, but have to turn on the LightState.
+            this->lightstate_->turn_on().perform();
             sw_state_ = SW_STATE_WAIT;
           }
       } else {  // No hand
-            ESP_LOGD(TAG,"Adjust cancelled at %d, to STATE_IDLE",range_);
+            ESP_LOGD(TAG,"[%7lu]Adjust cancelled at %d, to STATE_IDLE",t_now,range_);
             sw_state_ = SW_STATE_IDLE;
             // === TODO - : set original brightness.  =======================
             //ledc_set_duty(pwm_value);
@@ -501,6 +509,9 @@ void Vl6180xLightOutput::loop() {
     case SW_STATE_ACK:   // Acknowledge command by blink
       ESP_LOGD(TAG,"ACK ACK ACK, to STATE_IDLE");
 
+      // Ugly hack to blink a status_led for action acknowledgement.
+      this->status_momentary_error("Acknowledging manual state change",600);
+      t_ack_ = t_now;
       // === TODO - : blink 3 times.  =======================
       /*for (short i=0; i<3; i++) {
       gpio_set_level(AUXLED, 1);
@@ -540,7 +551,8 @@ void Vl6180xLightOutput::write_state(light::LightState *state) {
     state->current_values_as_brightness(&bright);
     this->output_->set_level(bright);
     
-    ESP_LOGI(TAG, "Output level: %3.1f", bright);
+    //ESP_LOGI(TAG, "Output level: %6.3f", bright);
+    
     
 
 }
