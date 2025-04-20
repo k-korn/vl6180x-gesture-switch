@@ -364,7 +364,7 @@ void Vl6180xLightOutput::loop() {
       //ESP_LOGD(TAG, "[%7lu] Check measurement, reg: %d time: %d ms", micros(),reg_status, t_now - t_rs_ );
 
       if (t_now - t_rs_ > 100) {
-        ESP_LOGE(TAG,"VL6180X Range Timed out!");
+        ESP_LOGE(TAG,"[%7lu] VL6180X Range Timed out!",t_now);
         //ESP_LOGD(TAG, "[%7lu] return status: %d, after %lu ms", micros(),status, t_now - t_rs_);
         this->write_reg(VL6180XRegister::VL6180X_REG_SYSTEM_INTERRUPT_CLEAR, 0x07);  // Clear the interrupt
         this->state_ = SENSOR_STATE_DATA_READY;
@@ -445,8 +445,12 @@ void Vl6180xLightOutput::loop() {
       if (hand_near_) {
           hold_ms_ = t_now - t_hand_;
           if (hold_ms_ > 1000 ) {
-            ESP_LOGD(TAG,"[%7lu] Hold for %d, to STATE_ADJ",t_now,hold_ms_);
-            sw_state_ = SW_STATE_ADJ;
+            if (use_dimming_) {
+              ESP_LOGD(TAG,"[%7lu] Hold for %d, to STATE_ADJ",t_now,hold_ms_);
+              sw_state_ = SW_STATE_ADJ;
+            } else { // If we don't want to engage in dimming.
+              sw_state_ = SW_STATE_WAIT;
+            }
             t_hand_ = t_now;
           }
       } else {
@@ -559,9 +563,12 @@ void Vl6180xLightOutput::write_state(light::LightState *state) {
 
 void Vl6180xLightOutput::dump_config(){
   ESP_LOGCONFIG(TAG, "VL6180X Light:");
-  LOG_SENSOR("  ", "Range", this);
-  LOG_UPDATE_INTERVAL(this);
   LOG_I2C_DEVICE(this);
+  ESP_LOGCONFIG(TAG, "  Min Gesture Range: %d mm",this->range_min_);
+  ESP_LOGCONFIG(TAG, "  Max Gesture Range: %d mm",this->range_max_);
+  ESP_LOGCONFIG(TAG, "  Use Dimming: %d",this->use_dimming_);
+  LOG_SENSOR("  ", "ALS", this->als_sensor_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 // Write 1 byte to the VL6180X at 'address'
